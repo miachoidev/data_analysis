@@ -28,14 +28,28 @@ from common import (
 )
 
 
-def build_reuse_group(chat_df: pd.DataFrame, reuse_min_req: int) -> pd.DataFrame:
+def group_labels(reuse_min_req: int) -> tuple[str, str]:
+    return (
+        f"재사용({reuse_min_req}건 이상)",
+        f"미사용/미재사용(0~{max(reuse_min_req - 1, 0)}건)",
+    )
+
+
+def build_reuse_group(profile_df: pd.DataFrame, chat_df: pd.DataFrame, reuse_min_req: int) -> pd.DataFrame:
+    ai_base = (
+        profile_df[["customer_id", "ai_signup_date"]]
+        .dropna(subset=["customer_id", "ai_signup_date"])
+        .drop_duplicates(subset=["customer_id"])
+    )
     c = chat_df.copy()
-    c = c[c["request_count"] > 0]
     g = c.groupby("customer_id", as_index=False).agg(total_ai_requests=("request_count", "sum"))
+    g = ai_base[["customer_id"]].merge(g, on="customer_id", how="left")
+    g["total_ai_requests"] = pd.to_numeric(g["total_ai_requests"], errors="coerce").fillna(0)
+    reuse_label, non_label = group_labels(reuse_min_req)
     g["reuse_group"] = np.where(
         g["total_ai_requests"] >= reuse_min_req,
-        "재사용(3건 이상)",
-        "미사용/미재사용(0~2건)",
+        reuse_label,
+        non_label,
     )
     return g
 
@@ -89,9 +103,14 @@ def add_signals(
     return base
 
 
-def compare_feature(df: pd.DataFrame, feature: str) -> Dict[str, float]:
-    r = df[df["reuse_group"] == "재사용(3건 이상)"][feature]
-    n = df[df["reuse_group"] == "미사용/미재사용(0~2건)"][feature]
+def compare_feature(
+    df: pd.DataFrame,
+    feature: str,
+    reuse_label: str,
+    non_label: str,
+) -> Dict[str, float]:
+    r = df[df["reuse_group"] == reuse_label][feature]
+    n = df[df["reuse_group"] == non_label][feature]
     reuse_mean = pd.to_numeric(r, errors="coerce").mean()
     non_mean = pd.to_numeric(n, errors="coerce").mean()
     return {
@@ -122,7 +141,11 @@ def run(
     if "customer_id" not in profile.columns:
         raise ValueError("profile 필수컬럼 없음: customer_id")
 
-    grp = build_reuse_group(chat, reuse_min_req)
+    if "ai_signup_date" not in profile.columns:
+        raise ValueError("profile 필수컬럼 없음: ai_signup_date")
+
+    reuse_label, non_label = group_labels(reuse_min_req)
+    grp = build_reuse_group(profile, chat, reuse_min_req)
     df = add_signals(profile, chat, grp, senior_age)
 
     # 가설별 지표
@@ -139,7 +162,7 @@ def run(
     rows = []
     for f in features:
         if f in df.columns:
-            rows.append(compare_feature(df, f))
+            rows.append(compare_feature(df, f, reuse_label, non_label))
     t = pd.DataFrame(rows)
     save1 = save_csv(t, out_dir, "a04_reuser_hypothesis_results.csv")
 

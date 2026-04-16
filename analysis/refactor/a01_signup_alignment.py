@@ -25,11 +25,13 @@ from common import (
 
 
 def normalize_profile(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
     mapper = {
-        "customer_id": ["customer_id", "고객번호"],
+        "customer_id": ["customer_id", "고객번호", "사용자번호"],
         "ebank_signup_date": ["ebank_signup_date", "전자금융가입일", "first_account_open_date"],
-        "ai_signup_date": ["ai_signup_date", "AI가입일", "ai_join_date"],
-        "ai_signup_yn": ["ai_signup_yn", "AI가입여부", "ai_join_yn"],
+        "ai_signup_date": ["ai_signup_date", "AI가입일", "ai_join_date", "가입일자"],
+        "ai_signup_yn": ["ai_signup_yn", "AI가입여부", "ai_join_yn", "전자금융가입일_AI가입일동일여부"],
     }
     rename = {}
     for std, cands in mapper.items():
@@ -92,6 +94,17 @@ def build_daily_from_profile(profile: pd.DataFrame) -> pd.DataFrame:
         )
         out_rows.append(t)
 
+    if {"customer_id", "ebank_signup_date", "ai_signup_date"}.issubset(profile.columns):
+        same_day_users = profile.dropna(subset=["ebank_signup_date", "ai_signup_date"]).copy()
+        same_day_users = same_day_users[same_day_users["ebank_signup_date"] == same_day_users["ai_signup_date"]]
+        same_day = (
+            same_day_users.groupby("ai_signup_date")["customer_id"]
+            .nunique()
+            .reset_index(name="same_day_new_and_ai_users")
+            .rename(columns={"ai_signup_date": "date"})
+        )
+        out_rows.append(same_day)
+
     if not out_rows:
         return pd.DataFrame()
 
@@ -101,9 +114,9 @@ def build_daily_from_profile(profile: pd.DataFrame) -> pd.DataFrame:
     daily = daily.sort_values("date")
     daily["new_signups"] = daily.get("new_signups", 0).fillna(0)
     daily["ai_signups"] = daily.get("ai_signups", 0).fillna(0)
-    daily["same_day_new_and_ai"] = daily[["new_signups", "ai_signups"]].min(axis=1)
-    daily["same_day_conv_proxy"] = daily.apply(
-        lambda r: safe_div(r["same_day_new_and_ai"], r["new_signups"]), axis=1
+    daily["same_day_new_and_ai_users"] = daily.get("same_day_new_and_ai_users", 0).fillna(0)
+    daily["same_day_conv_rate"] = daily.apply(
+        lambda r: safe_div(r["same_day_new_and_ai_users"], r["new_signups"]), axis=1
     )
     return daily
 
@@ -128,8 +141,8 @@ def analyze_event_windows(daily: pd.DataFrame, events: pd.DataFrame) -> pd.DataF
         post_new = post["new_signups"].mean()
         pre_ai = pre["ai_signups"].mean()
         post_ai = post["ai_signups"].mean()
-        pre_conv = pre["same_day_conv_proxy"].mean()
-        post_conv = post["same_day_conv_proxy"].mean()
+        pre_conv = pre["same_day_conv_rate"].mean()
+        post_conv = post["same_day_conv_rate"].mean()
 
         rows.append(
             {

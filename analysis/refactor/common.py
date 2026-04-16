@@ -28,9 +28,25 @@ def first_existing_column(df: pd.DataFrame, candidates: Iterable[str]) -> Option
 
 
 def to_datetime(df: pd.DataFrame, columns: Iterable[str]) -> None:
+    def _parse_mixed_datetime(s: pd.Series) -> pd.Series:
+        raw = s.astype("string").str.strip()
+        parsed = pd.to_datetime(raw, errors="coerce")
+
+        # 20260323 / 20260323153059 같이 구분자 없는 숫자 날짜를 보정
+        ymd8 = raw.str.fullmatch(r"\d{8}", na=False)
+        if ymd8.any():
+            parsed_ymd8 = pd.to_datetime(raw.where(ymd8), format="%Y%m%d", errors="coerce")
+            parsed = parsed.where(~ymd8, parsed_ymd8)
+
+        ymd14 = raw.str.fullmatch(r"\d{14}", na=False)
+        if ymd14.any():
+            parsed_ymd14 = pd.to_datetime(raw.where(ymd14), format="%Y%m%d%H%M%S", errors="coerce")
+            parsed = parsed.where(~ymd14, parsed_ymd14)
+        return parsed
+
     for c in columns:
         if c in df.columns:
-            df[c] = pd.to_datetime(df[c], errors="coerce")
+            df[c] = _parse_mixed_datetime(df[c])
 
 
 def parse_dates(df: pd.DataFrame, columns: Iterable[str]) -> None:
@@ -40,7 +56,13 @@ def parse_dates(df: pd.DataFrame, columns: Iterable[str]) -> None:
 def parse_date(value: Optional[str]) -> Optional[pd.Timestamp]:
     if value is None or str(value).strip() == "":
         return None
-    v = pd.to_datetime(value, errors="coerce")
+    v = pd.to_datetime(str(value).strip(), errors="coerce")
+    if pd.isna(v):
+        txt = str(value).strip()
+        if re.fullmatch(r"\d{8}", txt):
+            v = pd.to_datetime(txt, format="%Y%m%d", errors="coerce")
+        elif re.fullmatch(r"\d{14}", txt):
+            v = pd.to_datetime(txt, format="%Y%m%d%H%M%S", errors="coerce")
     return None if pd.isna(v) else v
 
 
@@ -121,23 +143,38 @@ def print_md_table(title: str, df: pd.DataFrame, digits: int = 4) -> None:
 def normalize_profile(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
     mapper = {
         "customer_id": ["customer_id", "고객번호", "사용자번호"],
-        "age_band": ["age_band", "나이대"],
+        "age_band": ["age_band", "나이대", "연령대"],
         "is_employee": ["is_employee", "임직원여부"],
         "job_group_large": ["job_group_large", "직군대분류", "직군대"],
         "job_group_mid": ["job_group_mid", "직군중분류", "직군중"],
         "job_group_small": ["job_group_small", "직군소분류", "직군소"],
         "job_group_detail": ["job_group_detail", "직군세분류", "직군세"],
+        "job_group": ["job_group", "직군대중소세분류"],
         "withdrawn_yn": ["withdrawn_yn", "탈회여부", "해지여부"],
         "loan_customer": ["loan_customer", "여신고객여부", "is_loan_customer", "loan_yn"],
-        "loan_account_count": ["loan_account_count", "대출계좌건수", "loan_acct_cnt", "loan_cnt"],
+        "loan_account_count": ["loan_account_count", "대출계좌건수", "대출건수", "loan_acct_cnt", "loan_cnt"],
         "ebank_signup_date": ["ebank_signup_date", "전자금융가입일", "first_account_open_date"],
         "ai_signup_date": ["ai_signup_date", "AI가입일", "ai_join_date", "가입일자"],
         "pre30_transfer_count": ["pre30_transfer_count", "AI가입전30일_이체건수"],
-        "post30_ai_transfer_count": ["post30_ai_transfer_count", "AI가입후30일_ai이체건수"],
+        "post30_ai_transfer_count": ["post30_ai_transfer_count", "AI가입후30일_ai이체건수", "AI가입후_AI이체건수"],
         "post30_other_transfer_count": ["post30_other_transfer_count", "AI가입후30일_기존이체건수"],
-        "stt_request_count": ["stt_request_count", "STT요청건수", "stt_count"],
+        "pre1m_general_transfer_count": ["pre1m_general_transfer_count", "AI가입전_1개월_일반이체건수"],
+        "pre1m_jjuk_transfer_count": ["pre1m_jjuk_transfer_count", "AI가입전_1개월_쭉이체건수"],
+        "pre1m_openbanking_transfer_count": ["pre1m_openbanking_transfer_count", "AI가입전_1개월_오픈뱅킹건수"],
+        "pre1m_charge_transfer_count": ["pre1m_charge_transfer_count", "AI가입전_1개월_충전건수"],
+        "pre1m_change_transfer_count": ["pre1m_change_transfer_count", "AI가입전_1개월_잔돈적립건수"],
+        "post_general_transfer_count": ["post_general_transfer_count", "AI가입후_일반이체건수"],
+        "post_jjuk_transfer_count": ["post_jjuk_transfer_count", "AI가입후_쭉이체건수"],
+        "post_openbanking_transfer_count": ["post_openbanking_transfer_count", "AI가입후_오픈뱅킹건수"],
+        "post_charge_transfer_count": ["post_charge_transfer_count", "AI가입후_AI충전건수", "AI가입후_충전건수"],
+        "post_change_transfer_count": ["post_change_transfer_count", "AI가입후_잔돈적립건수"],
+        "total_request_count": ["total_request_count", "전체요청건수"],
+        "transfer_request_count": ["transfer_request_count", "이체요청건수"],
+        "stt_request_count": ["stt_request_count", "STT요청건수", "STT전체요청건수", "stt_count"],
         "menu_reco_request_count": ["menu_reco_request_count", "메뉴추천요청건수", "menu_request_count"],
         "unanswered_count": ["unanswered_count", "답변불가경험건수"],
     }
@@ -152,6 +189,18 @@ def normalize_profile(df: Optional[pd.DataFrame]) -> pd.DataFrame:
         "pre30_transfer_count",
         "post30_ai_transfer_count",
         "post30_other_transfer_count",
+        "pre1m_general_transfer_count",
+        "pre1m_jjuk_transfer_count",
+        "pre1m_openbanking_transfer_count",
+        "pre1m_charge_transfer_count",
+        "pre1m_change_transfer_count",
+        "post_general_transfer_count",
+        "post_jjuk_transfer_count",
+        "post_openbanking_transfer_count",
+        "post_charge_transfer_count",
+        "post_change_transfer_count",
+        "total_request_count",
+        "transfer_request_count",
         "stt_request_count",
         "menu_reco_request_count",
         "unanswered_count",
@@ -159,6 +208,44 @@ def normalize_profile(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     ]:
         if c in out.columns:
             out[c] = pd.to_numeric(out[c], errors="coerce")
+
+    # 제공된 세부 이체 컬럼이 있을 때 1개월 전/후 집계 보강
+    pre_parts = [
+        "pre1m_general_transfer_count",
+        "pre1m_jjuk_transfer_count",
+        "pre1m_openbanking_transfer_count",
+        "pre1m_charge_transfer_count",
+        "pre1m_change_transfer_count",
+    ]
+    if any(c in out.columns for c in pre_parts):
+        pre_sum = pd.Series(0.0, index=out.index)
+        for c in pre_parts:
+            if c in out.columns:
+                pre_sum = pre_sum + out[c].fillna(0)
+        if "pre30_transfer_count" not in out.columns:
+            out["pre30_transfer_count"] = pre_sum
+        else:
+            out["pre30_transfer_count"] = out["pre30_transfer_count"].fillna(pre_sum)
+
+    post_parts = [
+        "post_general_transfer_count",
+        "post_jjuk_transfer_count",
+        "post_openbanking_transfer_count",
+        "post_charge_transfer_count",
+        "post_change_transfer_count",
+    ]
+    if any(c in out.columns for c in post_parts):
+        post_other_sum = pd.Series(0.0, index=out.index)
+        for c in post_parts:
+            if c in out.columns:
+                post_other_sum = post_other_sum + out[c].fillna(0)
+        if "post30_other_transfer_count" not in out.columns:
+            out["post30_other_transfer_count"] = post_other_sum
+        else:
+            out["post30_other_transfer_count"] = out["post30_other_transfer_count"].fillna(post_other_sum)
+
+    if "post30_ai_transfer_count" not in out.columns:
+        out["post30_ai_transfer_count"] = 0.0
 
     loan_flag = pd.Series(False, index=out.index)
     if "loan_customer" in out.columns:
@@ -185,13 +272,16 @@ def normalize_profile(df: Optional[pd.DataFrame]) -> pd.DataFrame:
 def normalize_chat(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
     mapper = {
         "customer_id": ["customer_id", "고객번호", "사용자번호"],
         "ai_signup_date": ["ai_signup_date", "AI가입일", "ai_join_date", "가입일자"],
-        "chat_date": ["chat_date", "ai요청일자", "채팅요청일", "요청일", "date"],
+        "chat_date": ["chat_date", "ai요청일자", "채팅요청일", "요청일", "TRX_DT", "date"],
+        "ai_signup_elapsed_days": ["ai_signup_elapsed_days", "AI가입경과일"],
         "request_datetime": ["request_datetime", "요청일시", "ai요청일시", "chat_datetime", "timestamp"],
         "service_category": ["service_category", "요청서비스", "서비스분류", "서비스분류코드"],
-        "intent_code": ["intent_code", "의도분류코드", "intent", "intent_subtype"],
+        "intent_code": ["intent_code", "의도분류코드", "의도분류", "intent", "intent_subtype"],
         "request_count": ["request_count", "건수", "cnt"],
     }
     rename: Dict[str, str] = {}
@@ -216,12 +306,15 @@ def normalize_chat(df: Optional[pd.DataFrame]) -> pd.DataFrame:
 def normalize_ai_transfer(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
     mapper = {
         "customer_id": ["customer_id", "고객번호", "사용자번호"],
         "ai_signup_date": ["ai_signup_date", "AI가입일"],
-        "ai_transfer_date": ["ai_transfer_date", "ai이체일"],
-        "ai_transfer_count": ["ai_transfer_count", "ai이체건수"],
-        "ai_transfer_amount": ["ai_transfer_amount", "금액합", "amount_sum"],
+        "ai_signup_elapsed_days": ["ai_signup_elapsed_days", "AI가입경과일"],
+        "ai_transfer_date": ["ai_transfer_date", "ai이체일", "AI이체일"],
+        "ai_transfer_count": ["ai_transfer_count", "ai이체건수", "AI이체건수"],
+        "ai_transfer_amount": ["ai_transfer_amount", "ai이체금액", "AI이체금액", "금액합", "amount_sum"],
     }
     rename: Dict[str, str] = {}
     for std, cands in mapper.items():
@@ -241,6 +334,8 @@ def normalize_ai_transfer(df: Optional[pd.DataFrame]) -> pd.DataFrame:
 def normalize_event(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame()
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
     mapper = {
         "event_date": ["event_date", "일자", "날짜"],
         "event_name": ["event_name", "이벤트명", "event"],

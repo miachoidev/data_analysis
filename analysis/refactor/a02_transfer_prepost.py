@@ -31,6 +31,8 @@ def build_transfer_window_metrics(profile: pd.DataFrame) -> pd.DataFrame:
         profile[c] = pd.to_numeric(profile[c], errors="coerce")
 
     valid = profile.copy()
+    if "ai_signup_date" in valid.columns:
+        valid = valid[valid["ai_signup_date"].notna()].copy()
     valid["post30_total_transfer_count"] = (
         valid["post30_ai_transfer_count"].fillna(0)
         + valid["post30_other_transfer_count"].fillna(0)
@@ -68,16 +70,33 @@ def build_funnel(
     chat: pd.DataFrame,
     ai_transfer: pd.DataFrame,
 ) -> pd.DataFrame:
-    signup_users = profile["customer_id"].nunique() if "customer_id" in profile.columns else np.nan
-    req_users = chat.loc[chat["request_count"] > 0, "customer_id"].nunique() if not chat.empty else np.nan
+    if "customer_id" not in profile.columns:
+        signup_users = np.nan
+        signup_pool: set = set()
+    else:
+        base = profile.copy()
+        if "ai_signup_date" in base.columns:
+            base = base[base["ai_signup_date"].notna()].copy()
+        signup_pool = set(base["customer_id"].dropna().unique())
+        signup_users = len(signup_pool)
+
+    req_users = np.nan
+    if not chat.empty and "customer_id" in chat.columns:
+        req_users = chat.loc[
+            (chat["request_count"] > 0) & (chat["customer_id"].isin(signup_pool)),
+            "customer_id",
+        ].nunique()
 
     transfer_req_users = np.nan
     if not chat.empty and {"customer_id", "service_category"}.issubset(chat.columns):
         mask = chat["service_category"].astype(str).str.contains("이체|transfer", case=False, na=False)
-        transfer_req_users = chat.loc[mask, "customer_id"].nunique()
+        transfer_req_users = chat.loc[mask & (chat["customer_id"].isin(signup_pool)), "customer_id"].nunique()
 
     transfer_exec_users = (
-        ai_transfer.loc[ai_transfer["ai_transfer_count"] > 0, "customer_id"].nunique()
+        ai_transfer.loc[
+            (ai_transfer["ai_transfer_count"] > 0) & (ai_transfer["customer_id"].isin(signup_pool)),
+            "customer_id",
+        ].nunique()
         if not ai_transfer.empty and {"customer_id", "ai_transfer_count"}.issubset(ai_transfer.columns)
         else np.nan
     )
