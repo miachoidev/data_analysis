@@ -43,6 +43,13 @@ python analysis/ai_exec_report.py \
 필수는 `--open-date`만입니다.  
 파일이 없는 항목은 자동으로 스킵됩니다.
 
+### 주피터(권장 분리본)
+
+- 전체(1~9): `analysis/ai_exec_report_notebook.ipynb`
+- **5~9만 전용(마케팅팀 범위 제외): `analysis/ai_exec_report_5to9_notebook.ipynb`**
+  - 1~4번(로그인/신규/일자추이/배너전환)은 제외
+  - 사용자행동 데이터(프로필/채팅/AI이체) 기반으로 5~9번만 수행
+
 ### 주피터 노트북으로 실행
 
 ```bash
