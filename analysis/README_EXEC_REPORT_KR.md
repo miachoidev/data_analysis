@@ -49,6 +49,10 @@ python analysis/ai_exec_report.py \
 - **5~9만 전용(마케팅팀 범위 제외): `analysis/ai_exec_report_5to9_notebook.ipynb`**
   - 1~4번(로그인/신규/일자추이/배너전환)은 제외
   - 사용자행동 데이터(프로필/채팅/AI이체) 기반으로 5~9번만 수행
+- **미사용/미재사용 원인 가설검증 전용: `analysis/ai_nonreuse_hypothesis_notebook.ipynb`**
+  - 그룹정의: 미사용/미재사용(0~2건) vs 재사용(3건 이상)
+  - `unanswered_count(답변불가경험건수)`를 핵심 변수로 검증
+  - STT/연령/메뉴/이체/여신고객 가설을 표 중심으로 검증
 
 ### 주피터 노트북으로 실행
 
@@ -57,6 +61,12 @@ jupyter notebook analysis/ai_exec_report_notebook.ipynb
 ```
 
 노트북 상단 경로 변수(`DATA_DIR`, 파일명)를 실제 파일 위치에 맞춰 수정한 뒤 셀을 순서대로 실행하세요.
+
+미사용 원인 가설검증 전용 노트북만 실행하려면:
+
+```bash
+jupyter notebook analysis/ai_nonreuse_hypothesis_notebook.ipynb
+```
 
 ---
 
