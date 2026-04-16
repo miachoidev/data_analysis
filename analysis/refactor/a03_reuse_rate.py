@@ -26,27 +26,44 @@ def run(
         print("[WARN] profile/chat 데이터가 없어 분석 불가")
         return
 
-    needed = {"customer_id", "ai_signup_date", "chat_date", "request_count"}
+    needed = {"customer_id", "chat_date", "request_count"}
     if not needed.issubset(chat_df.columns):
         print("[WARN] chat 필수 컬럼 누락")
         return
 
-    c = chat_df.dropna(subset=["customer_id", "ai_signup_date", "chat_date"]).copy()
+    if not {"customer_id", "ai_signup_date"}.issubset(profile_df.columns):
+        print("[WARN] profile 필수 컬럼 누락(customer_id, ai_signup_date)")
+        return
+
+    ai_base = (
+        profile_df[["customer_id", "ai_signup_date"]]
+        .dropna(subset=["customer_id", "ai_signup_date"])
+        .drop_duplicates(subset=["customer_id"])
+    )
+    if ai_base.empty:
+        print("[WARN] AI가입자 모수가 없어 분석 불가")
+        return
+
+    c = chat_df.dropna(subset=["customer_id", "chat_date"]).copy()
+    c = c.merge(ai_base, on="customer_id", how="inner")
     c["day_offset"] = (c["chat_date"] - c["ai_signup_date"]).dt.days
     c = c[c["day_offset"] >= 0]
 
-    user = c.groupby("customer_id", as_index=False).agg(
+    user_agg = c.groupby("customer_id", as_index=False).agg(
         total_requests=("request_count", "sum"),
         use_days=("chat_date", "nunique"),
     )
+    user = ai_base.merge(user_agg, on="customer_id", how="left")
+    user["total_requests"] = user["total_requests"].fillna(0)
+    user["use_days"] = user["use_days"].fillna(0)
     user["is_reuser"] = user["use_days"] >= reuse_min_days
 
-    ai_signup_base = profile_df.loc[profile_df["ai_signup_date"].notna(), "customer_id"].nunique()
+    ai_signup_base = ai_base["customer_id"].nunique()
 
     m = pd.DataFrame(
         [
             {"지표": "AI가입자수", "값": ai_signup_base},
-            {"지표": "가입 후 1회 이상 사용자", "값": user["customer_id"].nunique()},
+            {"지표": "가입 후 1회 이상 사용자", "값": int((user["total_requests"] > 0).sum())},
             {"지표": f"{reuse_min_days}일 이상 사용자(재사용)", "값": int(user["is_reuser"].sum())},
         ]
     )

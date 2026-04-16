@@ -1,6 +1,7 @@
 # 5~9 분석 리팩토링 가이드
 
 요청하신 대로 5~9 분석을 항목별 코드로 분리했습니다.
+또한 요청 반영으로 **주피터 노트북 기반 시각화 워크북**도 추가했습니다.
 
 ## 파일 구성
 
@@ -25,6 +26,9 @@
 - `run_all_5to9.py`  
   위 5개를 한 번에 실행
 
+- `ai_5to9_refactor_workbook.ipynb`  
+  1~5 분석을 노트북 셀에서 실행하고, 핵심 지표를 시각화하는 워크북
+
 ---
 
 ## 실행 예시
@@ -45,9 +49,17 @@ python3 analysis/refactor/run_all_5to9.py \
 python3 analysis/refactor/a01_signup_alignment.py --profile-file data/customer_profile.csv --event-file data/event_calendar.csv --output-dir output_5to9
 python3 analysis/refactor/a02_transfer_prepost.py --profile-file data/customer_profile.csv --chat-file data/ai_chat_daily_by_user.csv --ai-transfer-file data/ai_transfer_daily_by_user.csv --output-dir output_5to9
 python3 analysis/refactor/a03_reuse_rate.py --profile-file data/customer_profile.csv --chat-file data/ai_chat_daily_by_user.csv --output-dir output_5to9
-python3 analysis/refactor/a04_reuser_characteristics.py --profile-file data/customer_profile.csv --chat-file data/ai_chat_daily_by_user.csv --out-dir output_5to9
+python3 analysis/refactor/a04_reuser_characteristics.py --profile-file data/customer_profile.csv --chat-file data/ai_chat_daily_by_user.csv --output-dir output_5to9
 python3 analysis/refactor/a05_nonreuse_causes.py --profile-file data/customer_profile.csv --chat-file data/ai_chat_daily_by_user.csv --output-dir output_5to9
 ```
+
+노트북 실행:
+
+```bash
+jupyter notebook analysis/refactor/ai_5to9_refactor_workbook.ipynb
+```
+
+노트북에서 먼저 경로 셀(`PROFILE_FILE`, `CHAT_FILE` 등)을 실제 파일명으로 바꾼 뒤 순서대로 실행하세요.
 
 ---
 

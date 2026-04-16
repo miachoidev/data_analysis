@@ -33,13 +33,32 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def build_reuse_group(chat_df: pd.DataFrame, nonreuse_max_req: int) -> pd.DataFrame:
+def group_labels(nonreuse_max_req: int) -> tuple[str, str]:
+    return (
+        f"미사용/미재사용(0~{nonreuse_max_req}건)",
+        f"재사용({nonreuse_max_req + 1}건 이상)",
+    )
+
+
+def build_reuse_group(
+    profile_df: pd.DataFrame,
+    chat_df: pd.DataFrame,
+    nonreuse_max_req: int,
+) -> pd.DataFrame:
+    ai_base = (
+        profile_df[["customer_id", "ai_signup_date"]]
+        .dropna(subset=["customer_id", "ai_signup_date"])
+        .drop_duplicates(subset=["customer_id"])
+    )
     c = chat_df.copy()
     user = c.groupby("customer_id", as_index=False).agg(total_ai_requests=("request_count", "sum"))
+    user = ai_base[["customer_id"]].merge(user, on="customer_id", how="left")
+    user["total_ai_requests"] = pd.to_numeric(user["total_ai_requests"], errors="coerce").fillna(0)
+    non_label, reuse_label = group_labels(nonreuse_max_req)
     user["reuse_group"] = np.where(
         user["total_ai_requests"] <= nonreuse_max_req,
-        "미사용/미재사용(0~2건)",
-        "재사용(3건 이상)",
+        non_label,
+        reuse_label,
     )
     return user
 
@@ -90,7 +109,7 @@ def build_unanswered_features(chat_df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def test_n1(df: pd.DataFrame) -> pd.DataFrame:
+def test_n1(df: pd.DataFrame, non_label: str, reuse_label: str) -> pd.DataFrame:
     rows = []
     grp = df.groupby("reuse_group")
     for col, label in [
@@ -102,8 +121,8 @@ def test_n1(df: pd.DataFrame) -> pd.DataFrame:
         if col not in df.columns:
             continue
         vals = grp[col].mean()
-        non = vals.get("미사용/미재사용(0~2건)", np.nan)
-        reu = vals.get("재사용(3건 이상)", np.nan)
+        non = vals.get(non_label, np.nan)
+        reu = vals.get(reuse_label, np.nan)
         rows.append(
             {
                 "hypothesis": "N1",
@@ -116,7 +135,7 @@ def test_n1(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def test_n2(df: pd.DataFrame) -> pd.DataFrame:
+def test_n2(df: pd.DataFrame, non_label: str, reuse_label: str) -> pd.DataFrame:
     if "loan_customer_flag" not in df.columns:
         return pd.DataFrame()
     vals = df.groupby("reuse_group")["loan_customer_flag"].mean()
@@ -125,16 +144,15 @@ def test_n2(df: pd.DataFrame) -> pd.DataFrame:
             {
                 "hypothesis": "N2",
                 "metric": "여신고객 비율(대출계좌건수>=1 포함)",
-                "nonreuse_rate": vals.get("미사용/미재사용(0~2건)", np.nan),
-                "reuse_rate": vals.get("재사용(3건 이상)", np.nan),
-                "diff_nonreuse_minus_reuse": vals.get("미사용/미재사용(0~2건)", np.nan)
-                - vals.get("재사용(3건 이상)", np.nan),
+                "nonreuse_rate": vals.get(non_label, np.nan),
+                "reuse_rate": vals.get(reuse_label, np.nan),
+                "diff_nonreuse_minus_reuse": vals.get(non_label, np.nan) - vals.get(reuse_label, np.nan),
             }
         ]
     )
 
 
-def test_n3(df: pd.DataFrame) -> pd.DataFrame:
+def test_n3(df: pd.DataFrame, non_label: str, reuse_label: str) -> pd.DataFrame:
     rows = []
     if "is_churned" in df.columns:
         vals = df.groupby("reuse_group")["is_churned"].mean()
@@ -142,10 +160,9 @@ def test_n3(df: pd.DataFrame) -> pd.DataFrame:
             {
                 "hypothesis": "N3",
                 "metric": "탈회비율",
-                "nonreuse_rate": vals.get("미사용/미재사용(0~2건)", np.nan),
-                "reuse_rate": vals.get("재사용(3건 이상)", np.nan),
-                "diff_nonreuse_minus_reuse": vals.get("미사용/미재사용(0~2건)", np.nan)
-                - vals.get("재사용(3건 이상)", np.nan),
+                "nonreuse_rate": vals.get(non_label, np.nan),
+                "reuse_rate": vals.get(reuse_label, np.nan),
+                "diff_nonreuse_minus_reuse": vals.get(non_label, np.nan) - vals.get(reuse_label, np.nan),
             }
         )
     if "job_group" in df.columns:
@@ -157,7 +174,7 @@ def test_n3(df: pd.DataFrame) -> pd.DataFrame:
         )
         top["ratio_in_group"] = top.groupby("reuse_group")["users"].transform(lambda s: s / s.sum())
         # top 3 by nonreuse
-        non = top[top["reuse_group"] == "미사용/미재사용(0~2건)"].head(3).copy()
+        non = top[top["reuse_group"] == non_label].head(3).copy()
         for _, r in non.iterrows():
             rows.append(
                 {
@@ -182,23 +199,22 @@ def main() -> None:
     if "customer_id" not in profile.columns or "customer_id" not in chat.columns:
         raise ValueError("profile/chat 모두 customer_id 필요")
 
-    reuse = build_reuse_group(chat, args.nonreuse_max_req)
+    non_label, reuse_label = group_labels(args.nonreuse_max_req)
+    reuse = build_reuse_group(profile, chat, args.nonreuse_max_req)
     unans = build_unanswered_features(chat)
 
     base = profile.merge(reuse, on="customer_id", how="inner")
     base = base.merge(unans, on="customer_id", how="left")
 
-    # optional columns
-    if "탈회여부" in profile.columns and "is_churned" not in base.columns:
-        base["is_churned"] = profile["탈회여부"].astype(str).str.strip().str.upper().eq("Y")
-    elif "is_churned" in base.columns:
-        base["is_churned"] = base["is_churned"].astype(str).str.strip().str.upper().eq("Y")
-    if "직군대중소세분류" in profile.columns and "job_group" not in base.columns:
-        base["job_group"] = profile["직군대중소세분류"].astype(str)
+    # optional columns normalization
+    if "is_churned" in base.columns:
+        base["is_churned"] = base["is_churned"].astype(str).str.strip().str.upper().isin(["Y", "TRUE", "1"])
+    elif "withdrawn_yn" in base.columns:
+        base["is_churned"] = base["withdrawn_yn"].astype(str).str.strip().str.upper().eq("Y")
 
-    t_n1 = test_n1(base)
-    t_n2 = test_n2(base)
-    t_n3 = test_n3(base)
+    t_n1 = test_n1(base, non_label, reuse_label)
+    t_n2 = test_n2(base, non_label, reuse_label)
+    t_n3 = test_n3(base, non_label, reuse_label)
     t_all = pd.concat([t_n1, t_n2, t_n3], ignore_index=True)
 
     mode = unans["first_unanswered_mode"].dropna().iloc[0] if not unans.empty else "unknown"

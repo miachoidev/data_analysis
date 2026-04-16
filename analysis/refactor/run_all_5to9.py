@@ -75,7 +75,7 @@ def main() -> None:
             args.profile_file,
             "--chat-file",
             args.chat_file,
-            "--out-dir",
+            "--output-dir",
             str(out),
         ]
     )

@@ -129,6 +129,7 @@ def normalize_profile(df: Optional[pd.DataFrame]) -> pd.DataFrame:
         "job_group_mid": ["job_group_mid", "직군중분류", "직군중"],
         "job_group_small": ["job_group_small", "직군소분류", "직군소"],
         "job_group_detail": ["job_group_detail", "직군세분류", "직군세"],
+        "job_group": ["job_group", "직군대중소세분류"],
         "withdrawn_yn": ["withdrawn_yn", "탈회여부", "해지여부"],
         "loan_customer": ["loan_customer", "여신고객여부", "is_loan_customer", "loan_yn"],
         "loan_account_count": ["loan_account_count", "대출계좌건수", "loan_acct_cnt", "loan_cnt"],
