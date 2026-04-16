@@ -63,6 +63,45 @@ jupyter notebook analysis/refactor/ai_5to9_refactor_workbook.ipynb
 
 ---
 
+## 현재 반영된 컬럼 매핑 (사용자 제공 3개 파일 기준)
+
+### 1) 고객정보 데이터
+- `고객번호` → `customer_id`
+- `연령대` → `age_band`
+- `임직원여부` → `is_employee`
+- `전자금융가입일` → `ebank_signup_date`
+- `AI가입일` → `ai_signup_date`
+- `대출건수` → `loan_account_count` (여신고객 판정에 사용)
+- `STT전체요청건수` → `stt_request_count`
+- `답변불가경험건수` → `unanswered_count`
+- `직군대분류/직군중분류/직군소분류/직군세분류` → 직군 통합(`job_group`) 자동 생성
+
+이체 전후 비교(A02)용 집계는 아래처럼 자동 보강합니다.
+- 가입 전 1개월 이체 건수 합(`AI가입전_1개월_일반/쭉/오픈뱅킹/충전/잔돈적립`)  
+  → `pre30_transfer_count`
+- 가입 후 비AI 이체 건수 합(`AI가입후_일반/쭉/오픈뱅킹/AI충전/잔돈적립`)  
+  → `post30_other_transfer_count`
+- `AI가입후_AI이체건수` → `post30_ai_transfer_count`
+
+### 2) 고객 AI요청 로그
+- `고객번호` → `customer_id`
+- `AI가입일` → `ai_signup_date`
+- `AI가입경과일` → `ai_signup_elapsed_days`
+- `TRX_DT`(예: 20260323) → `chat_date` (자동 날짜 파싱)
+- `서비스분류` → `service_category`
+- `의도분류` → `intent_code`
+- `건수` → `request_count`
+
+### 3) 고객 AI이체 실행 로그
+- `고객번호` → `customer_id`
+- `AI가입일` → `ai_signup_date`
+- `AI가입경과일` → `ai_signup_elapsed_days`
+- `AI이체일` → `ai_transfer_date` (자동 날짜 파싱)
+- `AI이체건수` → `ai_transfer_count`
+- `AI이체금액` → `ai_transfer_amount`
+
+---
+
 ## 분석/해석 기준 핵심
 
 ### 재사용 기준

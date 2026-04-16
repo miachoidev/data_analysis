@@ -25,11 +25,13 @@ from common import (
 
 
 def normalize_profile(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
     mapper = {
-        "customer_id": ["customer_id", "고객번호"],
+        "customer_id": ["customer_id", "고객번호", "사용자번호"],
         "ebank_signup_date": ["ebank_signup_date", "전자금융가입일", "first_account_open_date"],
-        "ai_signup_date": ["ai_signup_date", "AI가입일", "ai_join_date"],
-        "ai_signup_yn": ["ai_signup_yn", "AI가입여부", "ai_join_yn"],
+        "ai_signup_date": ["ai_signup_date", "AI가입일", "ai_join_date", "가입일자"],
+        "ai_signup_yn": ["ai_signup_yn", "AI가입여부", "ai_join_yn", "전자금융가입일_AI가입일동일여부"],
     }
     rename = {}
     for std, cands in mapper.items():
