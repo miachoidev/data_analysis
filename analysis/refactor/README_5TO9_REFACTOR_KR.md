@@ -27,7 +27,10 @@
   위 5개를 한 번에 실행
 
 - `ai_5to9_refactor_workbook.ipynb`  
-  1~5 분석을 노트북 셀에서 실행하고, 핵심 지표를 시각화하는 워크북
+  1~5 분석을 노트북 셀에서 실행하고, 핵심 지표를 시각화하는 통합 워크북
+
+- `a01_signup_alignment.ipynb` ~ `a05_nonreuse_causes.ipynb`  
+  요청 반영: 1~5 분석을 각각 독립 실행할 수 있는 개별 노트북
 
 ---
 
@@ -60,6 +63,22 @@ jupyter notebook analysis/refactor/ai_5to9_refactor_workbook.ipynb
 ```
 
 노트북에서 먼저 경로 셀(`PROFILE_FILE`, `CHAT_FILE` 등)을 실제 파일명으로 바꾼 뒤 순서대로 실행하세요.
+
+개별 노트북(1~5 분리본) 실행:
+
+```bash
+jupyter notebook analysis/refactor/a01_signup_alignment.ipynb
+jupyter notebook analysis/refactor/a02_transfer_prepost.ipynb
+jupyter notebook analysis/refactor/a03_reuse_rate.ipynb
+jupyter notebook analysis/refactor/a04_reuser_characteristics.ipynb
+jupyter notebook analysis/refactor/a05_nonreuse_causes.ipynb
+```
+
+## 파일 로드 규칙(현재 기본값)
+
+- `common.load_csv`는 탭(`\t`) + `cp949`를 우선으로 읽습니다.
+- 실패 시 탭+`utf-8-sig`, 탭+`euc-kr`, 이후 자동 구분자 탐지 순으로 재시도합니다.
+- 파싱 문제 행은 `on_bad_lines="skip"`으로 건너뛰어 로딩 실패를 줄였습니다.
 
 ---
 

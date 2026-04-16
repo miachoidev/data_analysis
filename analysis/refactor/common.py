@@ -30,17 +30,18 @@ def first_existing_column(df: pd.DataFrame, candidates: Iterable[str]) -> Option
 def to_datetime(df: pd.DataFrame, columns: Iterable[str]) -> None:
     def _parse_mixed_datetime(s: pd.Series) -> pd.Series:
         raw = s.astype("string").str.strip()
-        parsed = pd.to_datetime(raw, errors="coerce")
+        raw_norm = raw.str.replace(r"\.0+$", "", regex=True)
+        parsed = pd.to_datetime(raw_norm, errors="coerce")
 
         # 20260323 / 20260323153059 같이 구분자 없는 숫자 날짜를 보정
-        ymd8 = raw.str.fullmatch(r"\d{8}", na=False)
+        ymd8 = raw_norm.str.fullmatch(r"\d{8}", na=False)
         if ymd8.any():
-            parsed_ymd8 = pd.to_datetime(raw.where(ymd8), format="%Y%m%d", errors="coerce")
+            parsed_ymd8 = pd.to_datetime(raw_norm.where(ymd8), format="%Y%m%d", errors="coerce")
             parsed = parsed.where(~ymd8, parsed_ymd8)
 
-        ymd14 = raw.str.fullmatch(r"\d{14}", na=False)
+        ymd14 = raw_norm.str.fullmatch(r"\d{14}", na=False)
         if ymd14.any():
-            parsed_ymd14 = pd.to_datetime(raw.where(ymd14), format="%Y%m%d%H%M%S", errors="coerce")
+            parsed_ymd14 = pd.to_datetime(raw_norm.where(ymd14), format="%Y%m%d%H%M%S", errors="coerce")
             parsed = parsed.where(~ymd14, parsed_ymd14)
         return parsed
 
@@ -69,11 +70,27 @@ def parse_date(value: Optional[str]) -> Optional[pd.Timestamp]:
 def load_csv(path: Optional[str]) -> Optional[pd.DataFrame]:
     if not path:
         return None
-    p = Path(path)
+    p = Path(str(path).strip().strip('"').strip("'")).expanduser()
     if not p.exists():
         print(f"[WARN] 파일 없음: {p}")
         return None
-    return pd.read_csv(p)
+    # 운영 데이터는 탭 구분 + cp949 케이스가 많으므로 우선순위로 시도
+    trials = [
+        {"sep": "\t", "encoding": "cp949", "engine": "python", "on_bad_lines": "skip", "dtype": str},
+        {"sep": "\t", "encoding": "utf-8-sig", "engine": "python", "on_bad_lines": "skip", "dtype": str},
+        {"sep": "\t", "encoding": "euc-kr", "engine": "python", "on_bad_lines": "skip", "dtype": str},
+        # fallback
+        {"sep": None, "encoding": "cp949", "engine": "python", "on_bad_lines": "skip", "dtype": str},
+        {"sep": None, "encoding": "utf-8-sig", "engine": "python", "on_bad_lines": "skip", "dtype": str},
+    ]
+    last_err: Optional[Exception] = None
+    for opts in trials:
+        try:
+            return pd.read_csv(p, **opts)
+        except Exception as e:  # pragma: no cover
+            last_err = e
+            continue
+    raise ValueError(f"CSV 읽기 실패: {p} / last_error={last_err}")
 
 
 def load_csv_or_empty(path: Optional[str]) -> pd.DataFrame:
@@ -173,7 +190,14 @@ def normalize_profile(df: Optional[pd.DataFrame]) -> pd.DataFrame:
         "post_charge_transfer_count": ["post_charge_transfer_count", "AI가입후_AI충전건수", "AI가입후_충전건수"],
         "post_change_transfer_count": ["post_change_transfer_count", "AI가입후_잔돈적립건수"],
         "total_request_count": ["total_request_count", "전체요청건수"],
-        "transfer_request_count": ["transfer_request_count", "이체요청건수"],
+        "transfer_request_count": ["transfer_request_count", "이체요청건수", "이체요청건"],
+        "account_info_request_count": ["account_info_request_count", "계좌정보요청건수", "계좌정보요청건"],
+        "transaction_history_request_count": [
+            "transaction_history_request_count",
+            "거래내역요청건수",
+            "거래내역요청건",
+        ],
+        "other_request_count": ["other_request_count", "기타요청건수", "기타요청건"],
         "stt_request_count": ["stt_request_count", "STT요청건수", "STT전체요청건수", "stt_count"],
         "menu_reco_request_count": ["menu_reco_request_count", "메뉴추천요청건수", "menu_request_count"],
         "unanswered_count": ["unanswered_count", "답변불가경험건수"],
@@ -201,6 +225,9 @@ def normalize_profile(df: Optional[pd.DataFrame]) -> pd.DataFrame:
         "post_change_transfer_count",
         "total_request_count",
         "transfer_request_count",
+        "account_info_request_count",
+        "transaction_history_request_count",
+        "other_request_count",
         "stt_request_count",
         "menu_reco_request_count",
         "unanswered_count",
