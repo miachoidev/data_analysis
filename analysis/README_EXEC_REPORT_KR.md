@@ -20,6 +20,10 @@
 
 으로 자동 생성합니다.
 
+추가로, **주피터 노트북 버전**(`analysis/ai_exec_report_notebook.ipynb`)도 제공합니다.
+- 그래프는 꼭 필요한 핵심 추이만 최소 구성
+- 표는 `print` 시 마크다운 표 형태로 출력되어 바로 복붙 가능
+
 ---
 
 ## 2) 실행 방법
@@ -38,6 +42,14 @@ python analysis/ai_exec_report.py \
 
 필수는 `--open-date`만입니다.  
 파일이 없는 항목은 자동으로 스킵됩니다.
+
+### 주피터 노트북으로 실행
+
+```bash
+jupyter notebook analysis/ai_exec_report_notebook.ipynb
+```
+
+노트북 상단 경로 변수(`DATA_DIR`, 파일명)를 실제 파일 위치에 맞춰 수정한 뒤 셀을 순서대로 실행하세요.
 
 ---
 
