@@ -50,6 +50,10 @@ python analysis/ai_exec_report.py \
   - 1~4번(로그인/신규/일자추이/배너전환)은 제외
   - 사용자행동 데이터(프로필/채팅/AI이체) 기반으로 5~9번만 수행
 - **미사용/미재사용 원인 가설검증 전용: `analysis/ai_nonreuse_hypothesis_notebook.ipynb`**
+  - 그룹: 미사용/미재사용(0~2건) vs 재사용(3건 이상)
+  - `unanswered_count(답변불가경험건수)` 핵심 반영
+  - 여신고객은 `loan_customer` 또는 **대출계좌건수(>=1)** 로 자동 파생(`loan_customer_flag`)
+- **미사용/미재사용 원인 가설검증 전용: `analysis/ai_nonreuse_hypothesis_notebook.ipynb`**
   - 그룹정의: 미사용/미재사용(0~2건) vs 재사용(3건 이상)
   - `unanswered_count(답변불가경험건수)`를 핵심 변수로 검증
   - STT/연령/메뉴/이체/여신고객 가설을 표 중심으로 검증
